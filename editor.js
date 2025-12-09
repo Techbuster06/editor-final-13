@@ -103,17 +103,10 @@ function loadTemplateFromURL(url) {
             height: newHeight,
             x: (maxWidth - newWidth) / 2,
             y: (maxHeight - newHeight) / 2,
-            name: 'template',
+            name: 'editable-shape',   // REQUIRED for unified handling
             mediaType: 'image',
             draggable: true,
             listening: true
-        });
-
-        image.on('click', () => {
-            selectShape(image);
-        });
-        image.on('tap', () => {
-            selectShape(image);
         });
 
         const layer = getActiveLayer();
@@ -126,11 +119,8 @@ function loadTemplateFromURL(url) {
         layer.add(image);
         image.draggable(true);
 
-        transformer.nodes([image]);
-
-        image.on("click", () => {
-            selectShape(image);
-        });
+        setupImageListeners(image);
+        selectShape(image);   // Auto-select the newly added template
 
         layer.batchDraw(); // Explicitly redraw the layer
         console.log('Image added to layer and layer redrawn.');
@@ -299,7 +289,9 @@ function setupTextListeners(textNode) {
  * Attaches Konva event listeners specific to Image nodes.
  */
 function setupImageListeners(image) {
-    image.on('click tap', function () {
+    image.on('click tap', function (e) {
+        // *** CRITICAL FIX: Stop event from bubbling up to the stage/layer deselect handler ***
+        e.cancelBubble = true;
         selectShape(image);
     });
     image.on('dragend', saveState);
@@ -324,19 +316,14 @@ function selectShape(shape) {
     selectedNode = shape;
     selectedShape = shape;
 
-    // Apply the transformer to the selected node
+    // Use the single global transformer for all shapes
     if (transformer) {
-        transformer.nodes([selectedNode]);
+        transformer.nodes([shape]);
     }
 
-    setupSidebar(selectedNode);
+    setupSidebar(shape);
     if (floatingToolbar) floatingToolbar.classList.add('active');
-
-    if (shape) {
-        updateFloatingControls(shape);
-    } else {
-        updateFloatingControls(null);
-    }
+    updateFloatingControls(shape);
     layer.batchDraw();
 }
 
@@ -421,6 +408,7 @@ function addTextToCanvas(initialText, size, color, x = 50, y = 150, align = 'lef
     setupTextListeners(newText);
     layer.add(newText);
     layer.batchDraw();
+    // CRITICAL: Auto-select the text to show the transformer immediately
     selectShape(newText);
     return newText;
 }
